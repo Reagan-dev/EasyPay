@@ -1,0 +1,11 @@
+# 1. Secret Environment Variables (MOST IMPORTANT)
+.env
+
+# 2. Python / Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
