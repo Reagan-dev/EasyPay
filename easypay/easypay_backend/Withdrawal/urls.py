@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import WithdrawalRequestView, MpesaWithdrawalCallbackView
 
-app_name = 'Withdrawal'
+app_name = 'withdrawal'
 
 urlpatterns = [
     # User: "I want to withdraw KES 1000 to my phone"
