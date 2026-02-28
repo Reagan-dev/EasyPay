@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Withdrawal',
+            name='withdrawal',
             fields=[
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('amount', models.DecimalField(decimal_places=2, default=0.0, max_digits=12)),
