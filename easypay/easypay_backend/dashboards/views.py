@@ -9,7 +9,7 @@ from wallets.models import Wallet
 from transactions.models import Transaction
 from qrtokens.models import QRToken
 from notifications.models import Notification
-from Withdrawal.models import Withdrawal
+from withdrawal.models import Withdrawal
 
 class StudentDashboardView(APIView):
     permission_classes = [IsAuthenticated]
