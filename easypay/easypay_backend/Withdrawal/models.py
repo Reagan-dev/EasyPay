@@ -37,4 +37,4 @@ class Withdrawal(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Withdrawal {self.amount} KES - {self.status}"
+        return f"withdrawal {self.amount} KES - {self.status}"
