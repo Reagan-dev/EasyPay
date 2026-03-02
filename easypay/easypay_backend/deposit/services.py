@@ -89,7 +89,7 @@ class MpesaService:
                 checkout_request_id=stk_response["CheckoutRequestID"],
                 phone=phone,
                 amount=amount,
-                user=user,
+                user_id=user.id,
                 status="PENDING"
             )
             deposit.mpesa_reference = mpesa_txn

@@ -26,7 +26,11 @@ SECRET_KEY = 'django-insecure-ipbly7(0^@w799=cny-_033a@gou=_7+&tvoc#bmahx@ti2wki
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'trinocular-belated-mariyah.ngrok-free.dev',
+    'localhost',
+    '127.0.0.1',
+]
 
 # Application definition
 INSTALLED_APPS = [
