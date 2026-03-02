@@ -1,6 +1,5 @@
-from django.shortcuts import render
-from rest_framework import generics, status
-from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from .models import Business, BusinessTerminal
 from .serializers import BusinessProfileSerializer, BusinessTerminalSerializer
@@ -14,8 +13,9 @@ class BusinessProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        # Every User with the BUSINESS role has exactly one Business record
-        return Business.objects.get(user=self.request.user)
+        # Auto-create profile if it doesn't exist (prevents 500s)
+        business, _ = Business.objects.get_or_create(user=self.request.user)
+        return business
 
 class BusinessTerminalListView(generics.ListCreateAPIView):
     """
@@ -26,10 +26,9 @@ class BusinessTerminalListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Security: Only return terminals for the logged-in merchant
         return BusinessTerminal.objects.filter(business__user=self.request.user)
 
     def perform_create(self, serializer):
-        # Automatically attach the terminal to the logged-in user's business
-        business = Business.objects.get(user=self.request.user)
+        # Ensure business exists
+        business, _ = Business.objects.get_or_create(user=self.request.user)
         serializer.save(business=business)
