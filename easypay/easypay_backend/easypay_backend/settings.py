@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(BASE_DIR / ".env")
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-ipbly7(0^@w799=cny-_033a@gou=_7+&tvoc#bmahx@ti2wki'
 
@@ -147,4 +149,4 @@ MPESA_INITIATOR_NAME=os.getenv('MPESA_INITIATOR_NAME')
 MPESA_INITIATOR_PASSWORD=os.getenv('MPESA_INITIATOR_PASSWORD')
 MPESA_ENVIRONMENT=os.getenv('MPESA_ENVIRONMENT')
 MPESA_CALLBACK_URL = os.getenv('MPESA_CALLBACK_URL')
-MPESA_BASE_URL = os.getenv('MPESA_BASE_URL', 'https://sandbox.safaricom.co.ke')
+MPESA_BASE_URL = os.getenv('MPESA_BASE_URL')
