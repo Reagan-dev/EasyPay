@@ -88,7 +88,7 @@ class GuardianDashboardView(APIView):
         children_data = []
         family_total = personal_wallet.balance
         
-        for child in guardian_profile.students.all():
+        for child in guardian_profile.customer_students.all():
             child_wallets = Wallet.objects.filter(owner_id=child.user.id)
             child_bal = child_wallets.aggregate(Sum('balance'))['balance__sum'] or 0
             family_total += child_bal

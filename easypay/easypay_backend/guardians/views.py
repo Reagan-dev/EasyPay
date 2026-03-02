@@ -28,7 +28,7 @@ class LinkedStudentsView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         customer = Customer.objects.get(user=self.request.user)
-        reg_no = serializer.validated_data['reg_no']
+        reg_no = serializer.validated_data.pop('reg_no')
         student = Student.objects.get(reg_no=reg_no)
 
         # Check if already linked

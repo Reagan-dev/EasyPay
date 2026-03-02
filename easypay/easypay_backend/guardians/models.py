@@ -11,7 +11,7 @@ class Customer(models.Model):
 
 class CustomerStudent(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='customer_students')
     can_view_transactions = models.BooleanField(default=False) 
     can_topup = models.BooleanField(default=True)
 
