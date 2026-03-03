@@ -22,7 +22,7 @@ class CustomerAdmin(admin.ModelAdmin):
     user_phone.short_description = 'Phone'
 
     def child_count(self, obj):
-        return obj.customerstudent_set.count()
+        return obj.customer_students.count()
     child_count.short_description = 'Children Linked'
 
 @admin.register(CustomerStudent)

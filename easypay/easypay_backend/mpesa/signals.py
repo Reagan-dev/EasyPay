@@ -81,3 +81,60 @@ def handle_mpesa_success(sender, instance, created, **kwargs):
 
         except Deposit.DoesNotExist:
             pass
+
+@receiver(post_save, sender=MpesaTransaction)
+def handle_mpesa_reversal_logic(sender, instance, created, **kwargs):
+    # We only care if the status is now REVERSED or FAILED
+    if instance.status not in ["REVERSED", "FAILED"]:
+        return
+
+    try:
+        deposit = Deposit.objects.get(mpesa_reference=instance)
+
+        # CRITICAL CHECK: Only reverse if the ledger already added the money
+        if deposit.status == "SUCCESS":
+            with transaction.atomic():
+                # 1. Update Deposit to the new status
+                deposit.status = "REVERSED"
+                deposit.save()
+
+                # 2. Identify Ledger Accounts (Same as success but roles swapped)
+                system_id = "00000000-0000-0000-0000-000000000000"
+                
+                # Dynamic mapping for the user ledger
+                ledger_mapping = {
+                    "MEAL": "STUDENT_MEAL",
+                    "POCKET": "STUDENT_POCKET",
+                    "SETTLEMENT": "BUSINESS_PAYOUT",
+                    "PERSONAL": "CUSTOMER_MAIN"
+                }
+                target_ledger_type = ledger_mapping.get(deposit.target_wallet, "CUSTOMER_MAIN")
+
+                user_ledger = LedgerAccount.objects.get(owner_id=deposit.user.id, account_type=target_ledger_type)
+                system_ledger = LedgerAccount.objects.get(owner_id=system_id, account_type="PLATFORM_REVENUE")
+
+                # 3. Create Reverse Ledger Entry
+                # We DEBIT the user (take away) and CREDIT the system (return funds)
+                LedgerEntry.create_transaction(
+                    debit_acc=user_ledger,
+                    credit_acc=system_ledger,
+                    amount=deposit.amount,
+                    ref=f"REV-{instance.external_txn_id}",
+                    desc=f"Reversal of M-Pesa Txn: {instance.external_txn_id}"
+                )
+
+                # 4. Deduct from Wallet
+                wallet = Wallet.objects.get(owner_id=deposit.user.id, type=deposit.target_wallet)
+                wallet.balance -= deposit.amount
+                wallet.save()
+
+                # 5. Notify the User
+                Notification.objects.create(
+                    user=deposit.user,
+                    title="Deposit Reversed",
+                    body=f"Your deposit of KES {deposit.amount} was reversed by M-Pesa.",
+                    notification_type="REVERSAL"
+                )
+
+    except Deposit.DoesNotExist:
+        print(f"Signal Error: No Deposit found for M-Pesa ID {instance.id}")

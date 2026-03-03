@@ -18,6 +18,8 @@ class Deposit(models.Model):
 
         ('FAILED', 'Failed'),
 
+        ('REVERSED', 'Reversed'),
+
     ]
     TARGET_CHOICES = [
         ("MEAL", "Meal Wallet"),
