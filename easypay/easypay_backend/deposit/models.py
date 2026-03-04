@@ -93,11 +93,11 @@ class Deposit(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),  # In newer Django, 'check' was renamed/aliased to 'condition' in some contexts, or requires keyword 'check'
                 name="deposit_amount_positive",
             ),
             models.CheckConstraint(
-                check=models.Q(fee__gte=0),
+                condition=models.Q(fee__gte=0),
                 name="deposit_fee_non_negative",
             ),
         ]

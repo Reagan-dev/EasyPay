@@ -42,11 +42,11 @@ class Withdrawal(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),
                 name="withdrawal_amount_positive",
             ),
             models.CheckConstraint(
-                check=models.Q(fee__gte=0),
+                condition=models.Q(fee__gte=0),
                 name="withdrawal_fee_non_negative",
             ),
         ]

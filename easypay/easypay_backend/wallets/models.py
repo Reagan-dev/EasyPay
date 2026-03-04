@@ -38,7 +38,7 @@ class Wallet(models.Model):
         unique_together = ("owner_type", "owner_id", "type")
         constraints = [
             models.CheckConstraint(
-                check=models.Q(balance__gte=0),
+                condition=models.Q(balance__gte=0),
                 name="wallet_balance_non_negative",
             ),
         ]

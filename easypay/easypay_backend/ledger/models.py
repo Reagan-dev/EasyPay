@@ -21,7 +21,7 @@ class LedgerAccount(models.Model):
         unique_together = ("owner_id", "account_type")
         constraints = [
             models.CheckConstraint(
-                check=models.Q(balance__gte=0),
+                condition=models.Q(balance__gte=0),
                 name="ledgeraccount_balance_non_negative",
             ),
         ]
@@ -104,7 +104,7 @@ class LedgerEntry(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),
                 name="ledgerentry_amount_positive",
             ),
         ]

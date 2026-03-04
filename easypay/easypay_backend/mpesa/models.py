@@ -35,7 +35,7 @@ class MpesaTransaction(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gte=0),
+                condition=models.Q(amount__gte=0),
                 name="mpesatransaction_amount_non_negative",
             ),
         ]
