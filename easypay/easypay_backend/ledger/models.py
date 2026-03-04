@@ -97,7 +97,7 @@ class LedgerEntry(models.Model):
         Enforce immutability of ledger entries after creation.
         Financial corrections must be done via new reversing entries.
         """
-        if self.pk and LedgerEntry.objects.filter(pk=self.pk).exists():
+        if not self._state.adding and LedgerEntry.objects.filter(pk=self.pk).exists():
             raise ValueError("LedgerEntry records are immutable once created.")
         return super().save(*args, **kwargs)
 

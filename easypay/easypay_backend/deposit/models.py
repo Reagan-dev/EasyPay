@@ -110,18 +110,19 @@ class Deposit(models.Model):
         FAILED  -> {FAILED}
         REVERSED -> {REVERSED}
         """
-        if self.pk:
-            previous = Deposit.objects.get(pk=self.pk)
-            prev_status = previous.status
-            new_status = self.status
-            allowed = {
-                "PENDING": {"PENDING", "SUCCESS", "FAILED", "REVERSED"},
-                "SUCCESS": {"SUCCESS", "REVERSED"},
-                "FAILED": {"FAILED"},
-                "REVERSED": {"REVERSED"},
-            }
-            if new_status not in allowed.get(prev_status, {prev_status}):
-                raise ValueError(
-                    f"Invalid Deposit status transition {prev_status} -> {new_status}"
-                )
+        if not self._state.adding:
+            previous = Deposit.objects.filter(pk=self.pk).only("status").first()
+            if previous:
+                prev_status = previous.status
+                new_status = self.status
+                allowed = {
+                    "PENDING": {"PENDING", "SUCCESS", "FAILED", "REVERSED"},
+                    "SUCCESS": {"SUCCESS", "REVERSED"},
+                    "FAILED": {"FAILED"},
+                    "REVERSED": {"REVERSED"},
+                }
+                if new_status not in allowed.get(prev_status, {prev_status}):
+                    raise ValueError(
+                        f"Invalid Deposit status transition {prev_status} -> {new_status}"
+                    )
         return super().save(*args, **kwargs)

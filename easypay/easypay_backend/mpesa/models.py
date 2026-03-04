@@ -47,17 +47,18 @@ class MpesaTransaction(models.Model):
         SUCCESS -> {SUCCESS}
         FAILED  -> {FAILED}
         """
-        if self.pk:
-            previous = MpesaTransaction.objects.get(pk=self.pk)
-            prev_status = previous.status
-            new_status = self.status
-            allowed = {
-                "PENDING": {"PENDING", "SUCCESS", "FAILED"},
-                "SUCCESS": {"SUCCESS"},
-                "FAILED": {"FAILED"},
-            }
-            if new_status not in allowed.get(prev_status, {prev_status}):
-                raise ValueError(
-                    f"Invalid MpesaTransaction status transition {prev_status} -> {new_status}"
-                )
+        if not self._state.adding:
+            previous = MpesaTransaction.objects.filter(pk=self.pk).only("status").first()
+            if previous:
+                prev_status = previous.status
+                new_status = self.status
+                allowed = {
+                    "PENDING": {"PENDING", "SUCCESS", "FAILED"},
+                    "SUCCESS": {"SUCCESS"},
+                    "FAILED": {"FAILED"},
+                }
+                if new_status not in allowed.get(prev_status, {prev_status}):
+                    raise ValueError(
+                        f"Invalid MpesaTransaction status transition {prev_status} -> {new_status}"
+                    )
         return super().save(*args, **kwargs)
