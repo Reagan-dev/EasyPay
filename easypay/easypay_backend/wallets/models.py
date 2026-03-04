@@ -35,7 +35,13 @@ class Wallet(models.Model):
     is_withdrawable = models.BooleanField(default=False)  # For settlement wallets, this might be False until funds are cleared
 
     class Meta:
-        unique_together = ('owner_type', 'owner_id', 'type')
+        unique_together = ("owner_type", "owner_id", "type")
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(balance__gte=0),
+                name="wallet_balance_non_negative",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.owner_type} - {self.type} ({self.balance})"

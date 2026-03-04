@@ -15,10 +15,10 @@ class ProcessSaleView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        token = serializer.validated_data['token_object']
-        intent = serializer.validated_data['intent_object']
-        payer_id = serializer.validated_data['payer_user_id']
-        wallet_type = serializer.validated_data['wallet_type']
+        token = serializer.validated_data["token_object"]
+        intent = serializer.validated_data["intent_object"]
+        payer_id = serializer.validated_data["payer_user_id"]
+        wallet_type = serializer.validated_data["wallet_type"]
 
         # Ensure the user executing the sale is the business owner
         try:
@@ -28,6 +28,16 @@ class ProcessSaleView(generics.CreateAPIView):
 
         # Execute all status changes and record creation in one atomic block
         with db_transaction.atomic():
+            # Lock the intent and token rows to make this operation idempotent
+            intent = intent.__class__.objects.select_for_update().get(pk=intent.pk)
+            token = token.__class__.objects.select_for_update().get(pk=token.pk)
+
+            # If another request already completed this intent or used this token, abort.
+            if not intent.is_active or not token.is_valid:
+                raise serializer.ValidationError(
+                    "This payment request has already been processed."
+                )
+
             # 1. Create Transaction (This triggers your handle_transaction_success signal)
             transaction_record = serializer.save(
                 business=business,
@@ -36,18 +46,18 @@ class ProcessSaleView(generics.CreateAPIView):
                 amount=intent.amount,
                 wallet_type=wallet_type,
                 payment_intent=intent,
-                status="SUCCESS"
+                status="SUCCESS",
             )
 
             # 2. Burn the QR Token so it can't be reused
             token.status = "USED"
-            token.save()
+            token.save(update_fields=["status"])
 
             # 3. Finalize the Payment Intent for the Terminal
             intent.status = "COMPLETED"
             intent.payer_id = payer_id
             intent.payer_type = transaction_record.payer_type
-            intent.save()
+            intent.save(update_fields=["status", "payer_id", "payer_type"])
 
     def create(self, request, *args, **kwargs):
         # Override create to return a clean receipt-style response

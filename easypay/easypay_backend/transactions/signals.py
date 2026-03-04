@@ -8,8 +8,19 @@ from notifications.models import Notification
 
 @receiver(post_save, sender=Transaction)
 def handle_transaction_success(sender, instance, created, **kwargs):
-    # We only act when a transaction is marked SUCCESS and hasn't been ledgered yet
-    if instance.status == "SUCCESS" and not instance.ledger_entry:
+    # We only act when a transaction transitions into SUCCESS and hasn't been ledgered yet
+    previous_status = None
+    if not created and instance.pk:
+        try:
+            previous_status = sender.objects.only("status").get(pk=instance.pk).status
+        except sender.DoesNotExist:
+            previous_status = None
+
+    if (
+        instance.status == "SUCCESS"
+        and previous_status != "SUCCESS"
+        and not instance.ledger_entry
+    ):
         try:
             with transaction.atomic():
                 # 1. Get Ledger Accounts
@@ -54,22 +65,24 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                     desc=f"Platform Fee for TXN-{instance.id}"
                 )
 
-                # 3. Update Wallets (The Digital Mirror)
+                # 3. Update Wallets (The Digital Mirror) with row-level locking
                 # Update Payer Wallet
-                payer_wallet = Wallet.objects.get(
+                payer_wallet = Wallet.objects.select_for_update().get(
                     owner_id=instance.payer_id,
-                    type=instance.wallet_type
+                    type=instance.wallet_type,
                 )
+                if payer_wallet.balance < instance.amount:
+                    raise ValueError("Insufficient wallet balance for transaction.")
                 payer_wallet.balance -= instance.amount
-                payer_wallet.save()
+                payer_wallet.save(update_fields=["balance"])
 
                 # Update Business Wallet
-                biz_wallet = Wallet.objects.get(
+                biz_wallet = Wallet.objects.select_for_update().get(
                     owner_id=instance.business.id,
-                    type="SETTLEMENT"
+                    type="SETTLEMENT",
                 )
                 biz_wallet.balance += net_amount
-                biz_wallet.save()
+                biz_wallet.save(update_fields=["balance"])
 
                 # 4. Finalize Transaction Record
                 instance.ledger_entry = entry

@@ -89,3 +89,39 @@ class Deposit(models.Model):
     def __str__(self):
 
         return f"Deposit {self.amount} KES by {self.user.phone} - {self.status}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(amount__gt=0),
+                name="deposit_amount_positive",
+            ),
+            models.CheckConstraint(
+                check=models.Q(fee__gte=0),
+                name="deposit_fee_non_negative",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Enforce allowed status transitions to prevent regressions.
+        PENDING -> {PENDING, SUCCESS, FAILED, REVERSED}
+        SUCCESS -> {SUCCESS, REVERSED}
+        FAILED  -> {FAILED}
+        REVERSED -> {REVERSED}
+        """
+        if self.pk:
+            previous = Deposit.objects.get(pk=self.pk)
+            prev_status = previous.status
+            new_status = self.status
+            allowed = {
+                "PENDING": {"PENDING", "SUCCESS", "FAILED", "REVERSED"},
+                "SUCCESS": {"SUCCESS", "REVERSED"},
+                "FAILED": {"FAILED"},
+                "REVERSED": {"REVERSED"},
+            }
+            if new_status not in allowed.get(prev_status, {prev_status}):
+                raise ValueError(
+                    f"Invalid Deposit status transition {prev_status} -> {new_status}"
+                )
+        return super().save(*args, **kwargs)

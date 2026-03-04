@@ -38,3 +38,39 @@ class Withdrawal(models.Model):
 
     def __str__(self):
         return f"withdrawal {self.amount} KES - {self.status}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(amount__gt=0),
+                name="withdrawal_amount_positive",
+            ),
+            models.CheckConstraint(
+                check=models.Q(fee__gte=0),
+                name="withdrawal_fee_non_negative",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Enforce allowed status transitions to prevent regressions.
+        PENDING    -> {PENDING, PROCESSING, SUCCESS, FAILED}
+        PROCESSING -> {PROCESSING, SUCCESS, FAILED}
+        SUCCESS    -> {SUCCESS}
+        FAILED     -> {FAILED}
+        """
+        if self.pk:
+            previous = Withdrawal.objects.get(pk=self.pk)
+            prev_status = previous.status
+            new_status = self.status
+            allowed = {
+                "PENDING": {"PENDING", "PROCESSING", "SUCCESS", "FAILED"},
+                "PROCESSING": {"PROCESSING", "SUCCESS", "FAILED"},
+                "SUCCESS": {"SUCCESS"},
+                "FAILED": {"FAILED"},
+            }
+            if new_status not in allowed.get(prev_status, {prev_status}):
+                raise ValueError(
+                    f"Invalid Withdrawal status transition {prev_status} -> {new_status}"
+                )
+        return super().save(*args, **kwargs)

@@ -41,6 +41,49 @@ class Transaction(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        # A PaymentIntent should only ever produce a single Transaction.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_intent"],
+                name="uniq_transaction_per_payment_intent",
+            ),
+            models.CheckConstraint(
+                check=models.Q(amount__gt=0),
+                name="transaction_amount_positive",
+            ),
+            models.CheckConstraint(
+                check=models.Q(platform_fee__gte=0),
+                name="transaction_fee_non_negative",
+            ),
+            models.CheckConstraint(
+                check=models.Q(platform_fee__lte=models.F("amount")),
+                name="transaction_fee_not_exceed_amount",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Enforce allowed status transitions to prevent regressions.
+        PENDING -> {PENDING, SUCCESS, FAILED}
+        SUCCESS -> {SUCCESS}
+        FAILED  -> {FAILED}
+        """
+        if self.pk:
+            previous = Transaction.objects.get(pk=self.pk)
+            prev_status = previous.status
+            new_status = self.status
+            allowed = {
+                "PENDING": {"PENDING", "SUCCESS", "FAILED"},
+                "SUCCESS": {"SUCCESS"},
+                "FAILED": {"FAILED"},
+            }
+            if new_status not in allowed.get(prev_status, {prev_status}):
+                raise ValueError(
+                    f"Invalid Transaction status transition {prev_status} -> {new_status}"
+                )
+        return super().save(*args, **kwargs)
+
     @property
     def merchant_payout(self):
         """The actual amount the merchant receives after the fee."""

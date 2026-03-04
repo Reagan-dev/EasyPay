@@ -4,8 +4,6 @@ from datetime import datetime
 from django.conf import settings
 from mpesa.models import MpesaTransaction
 from .models import Deposit
-from ledger.models import LedgerAccount, LedgerEntry
-from withdrawal.models import Withdrawal
 import uuid
 
 class MpesaService:
@@ -32,12 +30,25 @@ class MpesaService:
 
     # --- DEPOSIT LOGIC (STK PUSH) ---
     @staticmethod
-    def initiate_stk_push(user, amount, phone, target_wallet):
+    def initiate_stk_push(user, amount, phone, target_wallet, idempotency_key=None):
         """Triggers the M-Pesa Express (STK Push) prompt on the user's phone."""
         phone = str(phone).strip().replace("+", "")
         if phone.startswith("0"):
             phone = "254" + phone[1:]
-        
+
+        # Basic idempotency: if there's already a pending deposit for the same
+        # user/amount/target_wallet, reuse it instead of creating a duplicate.
+        existing_deposit = Deposit.objects.filter(
+            user=user,
+            amount=amount,
+            target_wallet=target_wallet,
+            status="PENDING",
+        ).order_by("-created_at").first()
+        if existing_deposit:
+            # Do not create a second Deposit/MPesaTransaction for the same intent.
+            # Caller can inspect the existing deposit/mpesa_reference.
+            return existing_deposit.mpesa_reference
+
         deposit = Deposit.objects.create(
             user=user,
             amount=amount,

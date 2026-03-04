@@ -31,3 +31,33 @@ class MpesaTransaction(models.Model):
 
     def __str__(self):
         return f"Mpesa {self.external_txn_id or self.checkout_request_id} - {self.status}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(amount__gte=0),
+                name="mpesatransaction_amount_non_negative",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Enforce allowed status transitions to prevent regressions.
+        PENDING -> {PENDING, SUCCESS, FAILED}
+        SUCCESS -> {SUCCESS}
+        FAILED  -> {FAILED}
+        """
+        if self.pk:
+            previous = MpesaTransaction.objects.get(pk=self.pk)
+            prev_status = previous.status
+            new_status = self.status
+            allowed = {
+                "PENDING": {"PENDING", "SUCCESS", "FAILED"},
+                "SUCCESS": {"SUCCESS"},
+                "FAILED": {"FAILED"},
+            }
+            if new_status not in allowed.get(prev_status, {prev_status}):
+                raise ValueError(
+                    f"Invalid MpesaTransaction status transition {prev_status} -> {new_status}"
+                )
+        return super().save(*args, **kwargs)

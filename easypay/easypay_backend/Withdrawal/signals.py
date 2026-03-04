@@ -2,9 +2,13 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
 from .models import Withdrawal
-from ledger.models import LedgerAccount, LedgerEntry
+from ledger.models import LedgerAccount, LedgerEntry, SYSTEM_PLATFORM_ID
 from wallets.models import Wallet
 from notifications.models import Notification
+from finance.mappings import (
+    get_withdrawal_wallet_type_for_user,
+    get_ledger_account_type_for_wallet,
+)
 
 @receiver(post_save, sender=Withdrawal)
 def handle_withdrawal_updates(sender, instance, created, **kwargs):
@@ -13,28 +17,39 @@ def handle_withdrawal_updates(sender, instance, created, **kwargs):
     Note: Wallet deduction now happens in the View to prevent double-spending.
     """
     
+    # Determine previous status for transition-aware handling
+    previous_status = None
+    if not created and instance.pk:
+        try:
+            previous_status = sender.objects.only("status").get(pk=instance.pk).status
+        except sender.DoesNotExist:
+            previous_status = None
+
     # --- CASE 1: SUCCESSFUL WITHDRAWAL ---
-    if instance.status == "SUCCESS" and not instance.ledger_entry:
+    # Only act on a real transition into SUCCESS
+    if (
+        instance.status == "SUCCESS"
+        and previous_status != "SUCCESS"
+        and not instance.ledger_entry
+    ):
         try:
             with transaction.atomic():
                 user = instance.user
-                
-                # 1. Improved Wallet/Ledger Mapping (Matching your logic)
-                if hasattr(user, 'business'):
-                    account_type = "BUSINESS_PAYOUT"
-                elif hasattr(user, 'student_profile'):
-                    account_type = "STUDENT_POCKET"
-                else:
-                    account_type = "CUSTOMER_MAIN"
+
+                # 1. Ledger account mapping derived from the central wallet→ledger mapping
+                w_type = get_withdrawal_wallet_type_for_user(user)
+                account_type = get_ledger_account_type_for_wallet(w_type)
 
                 # 2. Get Ledger Accounts
-                user_ledger = LedgerAccount.objects.get(owner_id=user.id, account_type=account_type)
-                
-                system_id = "00000000-0000-0000-0000-000000000000"
+                user_ledger = LedgerAccount.objects.get(
+                    owner_id=user.id, account_type=account_type
+                )
+
+                system_id = SYSTEM_PLATFORM_ID
                 system_ledger, _ = LedgerAccount.objects.get_or_create(
                     owner_id=system_id,
-                    account_type="PLATFORM_REVENUE", 
-                    defaults={'balance': 0}
+                    account_type="PLATFORM_REVENUE",
+                    defaults={"balance": 0},
                 )
 
                 # 3. Create Ledger Entry
@@ -61,18 +76,14 @@ def handle_withdrawal_updates(sender, instance, created, **kwargs):
             print(f"CRITICAL: Withdrawal Success Signal Error: {e}")
 
     # --- CASE 2: FAILED WITHDRAWAL (REFUND LOGIC) ---
-    elif instance.status == "FAILED":
+    # Only act on a real transition into FAILED, and only once
+    elif instance.status == "FAILED" and previous_status != "FAILED":
         try:
             with transaction.atomic():
                 user = instance.user
-                
+
                 # RE-CALCULATE the wallet type since it's not in the DB
-                if hasattr(user, 'business'):
-                    w_type = "SETTLEMENT"
-                elif hasattr(user, 'student_profile'):
-                    w_type = "POCKET"
-                else:
-                    w_type = "PERSONAL"
+                w_type = get_withdrawal_wallet_type_for_user(user)
 
                 wallet = Wallet.objects.select_for_update().get(
                     owner_id=user.id, 
