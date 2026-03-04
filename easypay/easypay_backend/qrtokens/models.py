@@ -15,8 +15,8 @@ class QRToken(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='qr_tokens')
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='qr_tokens')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tokens')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tokens')
     token_value = models.CharField(max_length=255, unique=True, default=secrets.token_urlsafe)
     
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)

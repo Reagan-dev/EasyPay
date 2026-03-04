@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Withdrawal
 from wallets.models import Wallet
+from rest_framework.exceptions import ValidationError
 
 class WithdrawalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,8 +24,8 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         try:
             wallet = Wallet.objects.get(owner_id=user.id, type=w_type)
             if wallet.balance < amount:
-                raise serializers.ValidationError(f"Insufficient funds in your {w_type} wallet.")
+                raise ValidationError(f"Insufficient funds in your {w_type} wallet.")
         except Wallet.DoesNotExist:
-            raise serializers.ValidationError("Source wallet not found.")
+            raise ValidationError("Source wallet not found.")
 
         return data

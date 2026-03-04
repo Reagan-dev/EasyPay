@@ -4,51 +4,79 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Withdrawal
 from .serializers import WithdrawalSerializer
-# from your_mpesa_app.services import MpesaB2C  # Example service
+from django.db import transaction
+from deposit.services import MpesaService
+from wallets.models import Wallet
+from rest_framework.exceptions import ValidationError 
+from django.db import transaction
 
 class WithdrawalRequestView(generics.CreateAPIView):
     serializer_class = WithdrawalSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        # 1. Save as PROCESSING - Money is locked but not yet deducted from Ledger
-        withdrawal = serializer.save(
-            user=self.request.user,
-            status="PROCESSING"
-        )
+        with transaction.atomic():
+            user = self.request.user
+            amount = serializer.validated_data['amount']
+            
+            # Logic to find wallet type (No migrations needed)
+            w_type = "SETTLEMENT" if hasattr(user, 'business') else "POCKET" if hasattr(user, 'student_profile') else "PERSONAL"
+            
+            # 1. Deduct money immediately
+            wallet = Wallet.objects.select_for_update().get(owner_id=user.id, type=w_type)
+            wallet.balance -= amount
+            wallet.save()
 
-        # 2. Trigger the Real M-Pesa B2C API Call
-        # In a real system, use a background task (Celery) so the user doesn't wait
-        try:
-            # response = MpesaB2C.initiate_transfer(
-            #     phone=withdrawal.phone_number,
-            #     amount=withdrawal.amount,
-            #     reference=str(withdrawal.id)
-            # )
-            # withdrawal.external_reference = response.get('ConversationID')
-            # withdrawal.save()
-            pass
-        except Exception as e:
-            withdrawal.status = "FAILED"
-            withdrawal.save()
-            raise serializer.ValidationError("M-Pesa service is currently unavailable.")
+            # 2. Create record
+            withdrawal = serializer.save(user=user, status="PROCESSING")
+
+            # 3. Call Safaricom
+            try:
+                res = MpesaService.initiate_b2c_withdrawal(withdrawal)
+                
+                # Check if we got a valid dict response and a success code
+                if isinstance(res, dict) and res.get("ResponseCode") == "0":
+                    withdrawal.external_reference = res.get("ConversationID")
+                    withdrawal.save()
+                else:
+                    # If Safaricom rejected it or timed out, REFUND and FAIL
+                    wallet.balance += amount
+                    wallet.save()
+                    withdrawal.status = "FAILED"
+                    withdrawal.save()
+                    
+                    # Fix the ValidationError call here
+                    raise ValidationError({
+                        "error": "M-Pesa Gateway rejected the request.",
+                        "details": res.get("ResponseDescription", "Connection Timeout") if isinstance(res, dict) else "Gateway Timeout"
+                    })
+
+            except Exception as e:
+                # Catch-all for network timeouts
+                wallet.balance += amount
+                wallet.save()
+                withdrawal.status = "FAILED"
+                withdrawal.save()
+                raise ValidationError(f"M-Pesa Service is currently unavailable: {str(e)}")
 
 class MpesaWithdrawalCallbackView(generics.GenericAPIView):
-    """
-    This is the PUBLIC URL Safaricom hits.
-    It DOES NOT require IsAuthenticated because Safaricom calls it.
-    """
     permission_classes = [] 
 
     def post(self, request, *args, **kwargs):
-        data = request.data
-        # 1. Logic to parse Safaricom's JSON (ResultCode, ResultDesc, etc.)
-        # 2. Find the withdrawal using the reference sent back
-        # withdrawal = Withdrawal.objects.get(id=data['OriginatorConversationID'])
-        
-        # 3. IF SUCCESSFUL:
-        # withdrawal.status = "SUCCESS"
-        # withdrawal.external_reference = data['MpesaReceiptNumber']
-        # withdrawal.save()  <-- THIS triggers your signal and moves the money.
-        
-        return Response({"ResultCode": 0, "ResultDesc": "Success"})
+        result = request.data.get('Result', {})
+        result_code = result.get('ResultCode')
+        conv_id = result.get('ConversationID')
+
+        try:
+            withdrawal = Withdrawal.objects.get(external_reference=conv_id)
+            
+            if result_code == 0:
+                withdrawal.status = "SUCCESS"
+            else:
+                withdrawal.status = "FAILED" # This will trigger the Refund Signal
+            
+            withdrawal.save()
+        except Withdrawal.DoesNotExist:
+            pass
+            
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})

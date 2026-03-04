@@ -8,6 +8,7 @@ from .models import QRToken
 from .serializers import QRTokenCreateSerializer
 from students.models import Student
 from guardians.models import Customer
+from rest_framework.exceptions import ValidationError
 
 class GenerateQRTokenView(generics.CreateAPIView):
     """
@@ -22,10 +23,10 @@ class GenerateQRTokenView(generics.CreateAPIView):
         
         # 1. Identify if the user is a Student or a Customer
         student = getattr(user, 'student_profile', None)
-        customer = getattr(user, 'customer_profilr', None)
+        customer = getattr(user, 'customer_profile', None)
 
         if not student and not customer:
-            raise serializer.ValidationError("User must be a Student or Customer to generate a QR.")
+            raise ValidationError("User must be a Student or Customer to generate a QR.")
 
         # 2. Cleanup: Expire any existing ACTIVE tokens to satisfy DB constraints
         QRToken.objects.filter(
