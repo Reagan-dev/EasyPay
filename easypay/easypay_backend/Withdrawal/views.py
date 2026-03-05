@@ -35,12 +35,12 @@ class WithdrawalRequestView(generics.CreateAPIView):
             res = MpesaService.initiate_b2c_withdrawal(withdrawal)
 
             if isinstance(res, dict) and res.get("ResponseCode") == "0":
-                withdrawal.external_reference = res.get("ConversationID")
-                withdrawal.save()
+                withdrawal.external_reference = res.get("OriginatorConversationID")
+                withdrawal.save(update_fields=["external_reference"])
             else:
                 # Mark as FAILED; refund is handled centrally in the Withdrawal signal.
                 withdrawal.status = "FAILED"
-                withdrawal.save()
+                withdrawal.save(update_fields=["status"])
 
                 raise ValidationError(
                     {
@@ -54,7 +54,7 @@ class WithdrawalRequestView(generics.CreateAPIView):
         except Exception as e:
             # Network or other errors: mark FAILED; refund handled once by signal
             withdrawal.status = "FAILED"
-            withdrawal.save()
+            withdrawal.save(update_fields=["status"])
             raise ValidationError(f"M-Pesa Service is currently unavailable: {str(e)}")
 
 class MpesaWithdrawalCallbackView(generics.GenericAPIView):
@@ -63,7 +63,7 @@ class MpesaWithdrawalCallbackView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         result = request.data.get("Result", {})
         result_code = result.get("ResultCode")
-        conv_id = result.get("ConversationID")
+        conv_id = result.get("OriginatorConversationID")
 
         try:
             # Make callback idempotent and prevent status regression
@@ -85,12 +85,12 @@ class MpesaWithdrawalCallbackView(generics.GenericAPIView):
                 if result_code == 0:
                     withdrawal.status = "SUCCESS"
                 else:
-                    # Only move to FAILED from non-terminal states
-                    if current_status not in ["SUCCESS", "FAILED"]:
-                        withdrawal.status = "FAILED"  # This will trigger the Refund Signal
+                    withdrawal.status = "FAILED"
 
-                withdrawal.save()
+                withdrawal.save(update_fields=["status"])
+                print(f"DEBUG: Withdrawal {withdrawal.id} finalized as {withdrawal.status}")
+
         except Withdrawal.DoesNotExist:
-            pass
+            print(f"ERROR: Callback received for unknown reference {conv_id}")
             
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})

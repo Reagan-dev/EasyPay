@@ -6,17 +6,12 @@ class MpesaTransactionSerializer(serializers.ModelSerializer):
         model = MpesaTransaction
         fields = '__all__'
 
+# mpesa/serializers.py
+
 class MpesaCallbackSerializer(serializers.Serializer):
-    """
-    Parses the Daraja API STK Push Callback JSON structure.
-    """
     Body = serializers.DictField()
 
     def extract_data(self):
-        """
-        Helper method to flatten the Safaricom JSON into 
-        dictionary format for our model.
-        """
         stk_callback = self.validated_data['Body']['stkCallback']
         result_code = stk_callback.get('ResultCode')
         
@@ -24,6 +19,7 @@ class MpesaCallbackSerializer(serializers.Serializer):
             'checkout_request_id': stk_callback.get('CheckoutRequestID'),
             'merchant_request_id': stk_callback.get('MerchantRequestID'),
             'raw_payload': self.validated_data,
+            'result_code': result_code,  
             'status': 'SUCCESS' if result_code == 0 else 'FAILED'
         }
 

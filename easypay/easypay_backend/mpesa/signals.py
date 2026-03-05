@@ -8,48 +8,40 @@ from notifications.models import Notification
 from deposit.models import Deposit
 from finance.mappings import get_ledger_account_type_for_wallet
 
-
 @receiver(post_save, sender=MpesaTransaction)
 def handle_mpesa_success(sender, instance, created, **kwargs):
-    # Transition-aware: only act when we move into SUCCESS
+    """
+    Handles successful M-Pesa payments.
+    UUID Safe: Uses Deposit status to prevent double-processing.
+    """
+    # 1. Terminal condition check
     if instance.status != "SUCCESS":
-        return
-
-    previous_status = None
-    if not created and instance.pk:
-        try:
-            previous_status = sender.objects.only("status").get(pk=instance.pk).status
-        except sender.DoesNotExist:
-            previous_status = None
-
-    if previous_status == "SUCCESS":
-        # Already processed success
         return
 
     try:
         with transaction.atomic():
-            # Lock the deposit row to make success handling idempotent and race-safe
+            # select_for_update() locks the row so only one process handles this success
             deposit = (
                 Deposit.objects.select_for_update()
                 .select_related("user")
                 .get(mpesa_reference=instance)
             )
-            if deposit.status == "SUCCESS" and deposit.ledger_entry_id:
-                # Already fully processed
-                return
 
+            # IDEMPOTENCY GUARD: 
+            # If the Deposit is already SUCCESS, we've already done the ledger/wallet math.
+            if deposit.status == "SUCCESS":
+                return 
+
+            # Start State Transition
             deposit.status = "SUCCESS"
             deposit.save(update_fields=["status"])
 
-            # 1. Use the target_wallet chosen by the user during the deposit request
+            # Identify target accounts via central mapping
             target_wallet_type = deposit.target_wallet
-
-            # 2. Map target_wallet to target_ledger_type via central mapping
             target_ledger_type = get_ledger_account_type_for_wallet(target_wallet_type)
-
-            # 3. Identify Ledger Accounts
             system_id = SYSTEM_PLATFORM_ID
 
+            # Lock accounts during the balance shift
             user_ledger = LedgerAccount.objects.select_for_update().get(
                 owner_id=deposit.user.id,
                 account_type=target_ledger_type,
@@ -60,8 +52,10 @@ def handle_mpesa_success(sender, instance, created, **kwargs):
                 account_type="PLATFORM_REVENUE",
                 defaults={"balance": 0},
             )
+            system_ledger.balance += deposit.amount
+            system_ledger.save(update_fields=["balance"])
 
-            # 4. Record the Ledger Entry (idempotent by reference)
+            # 4. Record the Ledger Entry
             ledger_move = LedgerEntry.create_transaction(
                 debit_acc=system_ledger,
                 credit_acc=user_ledger,
@@ -70,7 +64,7 @@ def handle_mpesa_success(sender, instance, created, **kwargs):
                 desc=f"M-Pesa Top-up to {target_wallet_type}"
             )
 
-            # 5. Update the Wallet (Digital Mirror) with locking
+            # 5. Mirror to Wallet
             wallet = Wallet.objects.select_for_update().get(
                 owner_id=deposit.user.id,
                 type=target_wallet_type,
@@ -78,10 +72,11 @@ def handle_mpesa_success(sender, instance, created, **kwargs):
             wallet.balance += deposit.amount
             wallet.save(update_fields=["balance"])
 
-            # 6. Finalize Deposit and Notify
+            # 6. Finalize Deposit metadata
             deposit.ledger_entry = ledger_move
             deposit.save(update_fields=["ledger_entry"])
 
+            # Notification
             Notification.objects.create(
                 user=deposit.user,
                 title="Top-up Successful",
@@ -91,23 +86,16 @@ def handle_mpesa_success(sender, instance, created, **kwargs):
             )
 
     except Deposit.DoesNotExist:
+        # This happens if the STK push was initiated but the Deposit record was lost
         pass
 
 @receiver(post_save, sender=MpesaTransaction)
 def handle_mpesa_reversal_logic(sender, instance, created, **kwargs):
-    # We only care if the status is now REVERSED or FAILED
+    """
+    Handles Reversals or Failures.
+    UUID Safe: Ensures reversal only happens if money was previously added.
+    """
     if instance.status not in ["REVERSED", "FAILED"]:
-        return
-
-    previous_status = None
-    if not created and instance.pk:
-        try:
-            previous_status = sender.objects.only("status").get(pk=instance.pk).status
-        except sender.DoesNotExist:
-            previous_status = None
-
-    # Only act on the first transition into a terminal reversed/failed state
-    if previous_status in ["REVERSED", "FAILED"]:
         return
 
     try:
@@ -118,29 +106,26 @@ def handle_mpesa_reversal_logic(sender, instance, created, **kwargs):
                 .get(mpesa_reference=instance)
             )
 
-            # CRITICAL CHECK: Only reverse if the ledger already added the money
+            # CRITICAL CHECK: We only reverse if the deposit was previously SUCCESSful.
+            # If it was still PENDING or already REVERSED, we skip.
             if deposit.status != "SUCCESS":
                 return
 
-            # 1. Update Deposit to the new status
+            # 1. Update Deposit status
             deposit.status = "REVERSED"
             deposit.save(update_fields=["status"])
 
-            # 2. Identify Ledger Accounts (Same as success but roles swapped)
-            system_id = SYSTEM_PLATFORM_ID
-
-            # Dynamic mapping for the user ledger via central mapping
+            # 2. Identify Ledger Accounts
             target_ledger_type = get_ledger_account_type_for_wallet(deposit.target_wallet)
-
+            
             user_ledger = LedgerAccount.objects.select_for_update().get(
                 owner_id=deposit.user.id, account_type=target_ledger_type
             )
             system_ledger = LedgerAccount.objects.select_for_update().get(
-                owner_id=system_id, account_type="PLATFORM_REVENUE"
+                owner_id=SYSTEM_PLATFORM_ID, account_type="PLATFORM_REVENUE"
             )
 
-            # 3. Create Reverse Ledger Entry
-            # We DEBIT the user (take away) and CREDIT the system (return funds)
+            # 3. Create Reverse Ledger Entry (Debit User, Credit System)
             LedgerEntry.create_transaction(
                 debit_acc=user_ledger,
                 credit_acc=system_ledger,
@@ -149,12 +134,13 @@ def handle_mpesa_reversal_logic(sender, instance, created, **kwargs):
                 desc=f"Reversal of M-Pesa Txn: {instance.external_txn_id}",
             )
 
-            # 4. Deduct from Wallet with locking and safety
+            # 4. Deduct from Wallet
             wallet = Wallet.objects.select_for_update().get(
                 owner_id=deposit.user.id, type=deposit.target_wallet
             )
-            if wallet.balance < deposit.amount:
-                raise ValueError("Reversal would overdraw wallet; aborting.")
+            
+            # Note: We allow balance to go negative if the money was already spent
+            # to maintain ledger honesty with the bank.
             wallet.balance -= deposit.amount
             wallet.save(update_fields=["balance"])
 
@@ -167,4 +153,4 @@ def handle_mpesa_reversal_logic(sender, instance, created, **kwargs):
             )
 
     except Deposit.DoesNotExist:
-        print(f"Signal Error: No Deposit found for M-Pesa ID {instance.id}")
+        pass

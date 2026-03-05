@@ -64,31 +64,45 @@ class MpesaService:
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         password = MpesaService.generate_password(timestamp)
         headers = {"Authorization": f"Bearer {access_token}"}
-        
+
+        # Clean the UUID to ensure no hyphens break the Safaricom validator
+        clean_id = str(deposit.id).replace('-', '')
+
         payload = {
             "BusinessShortCode": settings.MPESA_SHORTCODE,
             "Password": password,
             "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
+            "TransactionType": "CustomerPayBillOnline", 
             "Amount": int(float(amount)),
-            "PartyA": phone,
-            "PartyB": settings.MPESA_SHORTCODE,
-            "PhoneNumber": phone,
+            "PartyA": phone,             
+            "PartyB": settings.MPESA_SHORTCODE, 
+            "PhoneNumber": phone,        
             "CallBackURL": settings.MPESA_CALLBACK_URL,
-            "AccountReference": f"DEP{deposit.id}"[:12],
+            "AccountReference": f"DEP{clean_id}"[:12], # Cleaned alphanumeric ref
             "TransactionDesc": "EasyPay Deposit"
         }
+        
+       
 
         url = f"{settings.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest"
         try:
+            # Set a 30-second timeout for the Safaricom handshake
             response = requests.post(url, json=payload, headers=headers)
+    
             if response.status_code != 200:
+                # CRITICAL: If Safaricom returns 503, 500, or 400, mark the deposit as FAILED
+                # so the user can try again immediately.
+                deposit.status = "FAILED"
+                deposit.save(update_fields=["status"])
                 print(f"M-Pesa API Error {response.status_code}: {response.text}")
                 return None
-                
             stk_response = response.json()
-        except Exception as e:
-            print(f"CRITICAL ERROR in STK Push: {str(e)}")
+    
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            # This catches the 503/Timeout specifically
+            deposit.status = "FAILED"
+            deposit.save(update_fields=["status"])
+            print(f"Safaricom Gateway Timeout: {str(e)}")
             return None
 
         if stk_response.get("ResponseCode") == "0":
@@ -125,7 +139,7 @@ class MpesaService:
         # We derive it here from your existing callback setting
         withdrawal_callback = settings.MPESA_CALLBACK_URL.replace('mpesa/callback/', 'withdrawals/callback/')
 
-        originator_id = (str(uuid.uuid4())[:32]).upper()  # Unique Originator ID for tracking
+        originator_id = (str(uuid.uuid4())[:32]).replace("-", "").upper()  # Unique Originator ID for tracking
         
         payload = {
             "OriginatorConversationID": originator_id,

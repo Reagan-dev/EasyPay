@@ -14,46 +14,33 @@ from finance.mappings import (
 def handle_withdrawal_updates(sender, instance, created, **kwargs):
     """
     Handles Ledger entries on Success and Refunds on Failure.
-    Note: Wallet deduction now happens in the View to prevent double-spending.
+    Uses notification existence as a safety guard to prevent double-processing.
     """
-    
-    # Determine previous status for transition-aware handling
-    previous_status = None
-    if not created and instance.pk:
-        try:
-            previous_status = sender.objects.only("status").get(pk=instance.pk).status
-        except sender.DoesNotExist:
-            previous_status = None
+    # We only care about updates to existing withdrawals (transitions)
+    if created:
+        return
 
     # --- CASE 1: SUCCESSFUL WITHDRAWAL ---
-    # Only act on a real transition into SUCCESS
-    if (
-        instance.status == "SUCCESS"
-        and previous_status != "SUCCESS"
-        and not instance.ledger_entry
-    ):
+    # We check if a ledger_entry exists to ensure we don't double-book the ledger
+    if instance.status == "SUCCESS" and not instance.ledger_entry:
         try:
             with transaction.atomic():
                 user = instance.user
-
-                # 1. Ledger account mapping derived from the central wallet→ledger mapping
                 w_type = get_withdrawal_wallet_type_for_user(user)
                 account_type = get_ledger_account_type_for_wallet(w_type)
 
-                # 2. Get Ledger Accounts
-                user_ledger = LedgerAccount.objects.get(
+                # 1. Get and Lock Ledger Accounts
+                user_ledger = LedgerAccount.objects.select_for_update().get(
                     owner_id=user.id, account_type=account_type
                 )
 
-                system_id = SYSTEM_PLATFORM_ID
-                system_ledger, _ = LedgerAccount.objects.get_or_create(
-                    owner_id=system_id,
+                system_ledger, _ = LedgerAccount.objects.select_for_update().get_or_create(
+                    owner_id=SYSTEM_PLATFORM_ID,
                     account_type="PLATFORM_REVENUE",
                     defaults={"balance": 0},
                 )
 
-                # 3. Create Ledger Entry
-                # This balances the books. Debit User (Reduction), Credit System/Mpesa
+                # 2. Record the Ledger Entry (Debit User, Credit System)
                 ledger_move = LedgerEntry.create_transaction(
                     debit_acc=user_ledger,
                     credit_acc=system_ledger,
@@ -62,43 +49,52 @@ def handle_withdrawal_updates(sender, instance, created, **kwargs):
                     desc=f"M-Pesa Withdrawal Success: {instance.external_reference}"
                 )
 
-                # 4. Finalize - Use update() to avoid recursion
+                # 3. Finalize Withdrawal record using update() to prevent signal recursion
                 Withdrawal.objects.filter(id=instance.id).update(ledger_entry=ledger_move)
 
-                # 5. Notify the User
+                # 4. Notify the User
                 Notification.objects.create(
                     user=user,
                     title="Withdrawal Successful",
-                    body=f"KES {instance.amount} has been sent to your M-Pesa. Ref: {instance.external_reference}",
+                    body=f"KES {instance.amount} sent to M-Pesa. Ref: {instance.external_reference}",
                     notification_type="WITHDRAWAL_SUCCESS"
                 )
         except Exception as e:
-            print(f"CRITICAL: Withdrawal Success Signal Error: {e}")
+            print(f"CRITICAL: Withdrawal Success Ledger Error: {e}")
 
     # --- CASE 2: FAILED WITHDRAWAL (REFUND LOGIC) ---
-    # Only act on a real transition into FAILED, and only once
-    elif instance.status == "FAILED" and previous_status != "FAILED":
+    elif instance.status == "FAILED":
         try:
             with transaction.atomic():
                 user = instance.user
-
-                # RE-CALCULATE the wallet type since it's not in the DB
                 w_type = get_withdrawal_wallet_type_for_user(user)
 
-                wallet = Wallet.objects.select_for_update().get(
-                    owner_id=user.id, 
-                    type=w_type
-                )
-                
-                wallet.balance += instance.amount
-                wallet.save()
-                
-                # Notify user
-                Notification.objects.create(
+                # IDEMPOTENCY GUARD: Check if we have already issued a refund notification 
+                # for this specific withdrawal ID. This prevents double-refunds.
+                refund_exists = Notification.objects.filter(
                     user=user,
-                    title="Withdrawal Failed",
-                    body=f"Your withdrawal of KES {instance.amount} failed. Funds returned to {w_type} wallet.",
-                    notification_type="WITHDRAWAL_FAILED"
-                )
+                    notification_type="WITHDRAWAL_FAILED",
+                    body__contains=str(instance.id)
+                ).exists()
+
+                if not refund_exists:
+                    # 1. Lock and update wallet
+                    wallet = Wallet.objects.select_for_update().get(
+                        owner_id=user.id, 
+                        type=w_type
+                    )
+                    
+                    wallet.balance += instance.amount
+                    wallet.save(update_fields=["balance"])
+                    
+                    # 2. Notify user (This also acts as our record that the refund happened)
+                    Notification.objects.create(
+                        user=user,
+                        title="Withdrawal Failed - Refunded",
+                        body=f"Your withdrawal {instance.id} failed. KES {instance.amount} returned to {w_type} wallet.",
+                        notification_type="WITHDRAWAL_FAILED"
+                    )
+                    print(f"SUCCESS: Refunded KES {instance.amount} to user {user.id}")
+
         except Exception as e:
-            print(f"Refund Error: {e}")
+            print(f"CRITICAL: Refund Error for Withdrawal {instance.id}: {e}")
