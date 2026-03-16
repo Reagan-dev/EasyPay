@@ -18,8 +18,6 @@ class LedgerEntrySerializer(serializers.ModelSerializer):
         ]
 
     def get_entry_type(self, obj):
-        # This is useful for front-end styling (Red for Debit, Green for Credit)
-        # We assume the context provides the 'viewing_account'
         viewing_acc = self.context.get('viewing_account')
         if viewing_acc == obj.debit_account:
             return "DEBIT"

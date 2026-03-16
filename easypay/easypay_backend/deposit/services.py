@@ -28,7 +28,7 @@ class MpesaService:
         encoded_string = base64.b64encode(data_to_encode.encode())
         return encoded_string.decode('utf-8')
 
-    # --- DEPOSIT LOGIC (STK PUSH) ---
+    # DEPOSIT LOGIC (STK PUSH) 
     @staticmethod
     def initiate_stk_push(user, amount, phone, target_wallet, idempotency_key=None):
         """Triggers the M-Pesa Express (STK Push) prompt on the user's phone."""
@@ -45,8 +45,6 @@ class MpesaService:
             status="PENDING",
         ).order_by("-created_at").first()
         if existing_deposit:
-            # Do not create a second Deposit/MPesaTransaction for the same intent.
-            # Caller can inspect the existing deposit/mpesa_reference.
             return existing_deposit.mpesa_reference
 
         deposit = Deposit.objects.create(
@@ -65,7 +63,6 @@ class MpesaService:
         password = MpesaService.generate_password(timestamp)
         headers = {"Authorization": f"Bearer {access_token}"}
 
-        # Clean the UUID to ensure no hyphens break the Safaricom validator
         clean_id = str(deposit.id).replace('-', '')
 
         payload = {
@@ -90,7 +87,7 @@ class MpesaService:
             response = requests.post(url, json=payload, headers=headers)
     
             if response.status_code != 200:
-                # CRITICAL: If Safaricom returns 503, 500, or 400, mark the deposit as FAILED
+                # If Safaricom returns 503, 500, or 400, mark the deposit as FAILED
                 # so the user can try again immediately.
                 deposit.status = "FAILED"
                 deposit.save(update_fields=["status"])
@@ -120,7 +117,7 @@ class MpesaService:
         
         return None
 
-    # --- WITHDRAWAL LOGIC (B2C) ---
+    # WITHDRAWAL LOGIC (B2C) 
     @staticmethod
     def initiate_b2c_withdrawal(withdrawal):
         """Sends money from the Business Shortcode to the Customer phone."""
@@ -135,8 +132,7 @@ class MpesaService:
         url = f"{settings.MPESA_BASE_URL}/mpesa/b2c/v3/paymentrequest"
         headers = {"Authorization": f"Bearer {access_token}"}
         
-        # Note: B2C results usually go to a different ResultURL than STK Push
-        # We derive it here from your existing callback setting
+        
         withdrawal_callback = settings.MPESA_CALLBACK_URL.replace('mpesa/callback/', 'withdrawals/callback/')
 
         originator_id = (str(uuid.uuid4())[:32]).replace("-", "").upper()  # Unique Originator ID for tracking

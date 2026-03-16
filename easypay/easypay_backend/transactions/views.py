@@ -5,6 +5,8 @@ from django.db import transaction as db_transaction
 from .models import Transaction
 from .serializers import SaleExecutionSerializer
 from merchants.models import Business
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 class ProcessSaleView(generics.CreateAPIView):
     """
@@ -24,7 +26,7 @@ class ProcessSaleView(generics.CreateAPIView):
         try:
             business = Business.objects.get(user=self.request.user)
         except Business.DoesNotExist:
-            raise serializer.ValidationError("Unauthorized: Only business accounts can process sales.")
+            raise ValidationError("Unauthorized: Only business accounts can process sales.")
 
         # Execute all status changes and record creation in one atomic block
         with db_transaction.atomic():

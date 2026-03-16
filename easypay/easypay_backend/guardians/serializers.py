@@ -22,7 +22,7 @@ class CustomerStudentSerializer(serializers.ModelSerializer):
     # This allows the parent to see student details (name, reg_no) in the list
     student_details = StudentProfileSerializer(source='student', read_only=True)
     
-    # This is for the POST request: Parent sends the reg_no to "claim" the student
+    # This is for the POST request
     reg_no = serializers.CharField(write_only=True)
 
     class Meta:

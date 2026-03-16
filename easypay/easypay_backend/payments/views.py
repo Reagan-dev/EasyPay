@@ -36,7 +36,7 @@ class CreatePaymentIntentView(generics.CreateAPIView):
             ).update(status="EXPIRED")
 
             # Set expiration to exactly 1 minute (60 seconds)
-            expiry = timezone.now() + timedelta(minutes=1)
+            expiry = timezone.now() + timedelta(minutes=5)
 
             serializer.save(
                 business=business,

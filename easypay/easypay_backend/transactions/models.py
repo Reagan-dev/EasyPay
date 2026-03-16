@@ -3,6 +3,7 @@ from django.db import models
 from merchants.models import Business
 from payments.models import PaymentIntent
 from ledger.models import LedgerEntry
+from decimal import Decimal
 
 class Transaction(models.Model):
     PAYER_CHOICES = [("STUDENT","STUDENT"), ("CUSTOMER","CUSTOMER")]
@@ -16,11 +17,11 @@ class Transaction(models.Model):
     payer_id = models.UUIDField() # ID of either the Student or Customer
 
     # Financial Details
-    business = models.ForeignKey(Business, on_delete=models.PROTECT)
+    business = models.ForeignKey(Business, on_delete=models.CASCADE)
     wallet_type = models.CharField(max_length=20, choices=WALLET_CHOICES)
     
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)           # The total amount of the transaction
-    platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=3.00) # Our cut (KES 3)
+    platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3.00")) # Our cut (KES 3)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
     

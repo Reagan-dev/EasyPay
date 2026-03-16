@@ -11,7 +11,8 @@ class SaleExecutionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         # We only need these from the frontend; the rest is derived server-side
-        fields = ['token_value', 'intent_id', 'wallet_type']
+        fields = ['id', 'token_value', 'intent_id', 'wallet_type']
+        read_only_fields = ['id']
 
     def validate(self, data):
         # 1. Validate the Payment Intent (The Terminal's Request)
@@ -52,3 +53,13 @@ class SaleExecutionSerializer(serializers.ModelSerializer):
         data['intent_object'] = intent
         data['payer_user_id'] = payer_user_id
         return data
+    
+    def create(self, validated_data):
+        validated_data.pop('token_value', None)
+        validated_data.pop('intent_id', None)
+        validated_data.pop('token_object', None)
+        validated_data.pop('intent_object', None)
+        validated_data.pop('payer_user_id', None)
+        
+        # 2. validated_data only contains real Transaction model fields
+        return super().create(validated_data)

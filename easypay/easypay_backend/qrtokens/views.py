@@ -36,7 +36,7 @@ class GenerateQRTokenView(generics.CreateAPIView):
         ).update(status="EXPIRED")
 
         # 3. Set expiration (e.g., 10 minutes from now)
-        expires_at = timezone.now() + timedelta(minutes=1)
+        expires_at = timezone.now() + timedelta(minutes=5)
 
         serializer.save(
             student=student,
