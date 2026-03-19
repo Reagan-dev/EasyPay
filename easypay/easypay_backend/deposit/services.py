@@ -37,7 +37,6 @@ class MpesaService:
             phone = "254" + phone[1:]
 
         # Basic idempotency: if there's already a pending deposit for the same
-        # user/amount/target_wallet, reuse it instead of creating a duplicate.
         existing_deposit = Deposit.objects.filter(
             user=user,
             amount=amount,
@@ -83,11 +82,9 @@ class MpesaService:
 
         url = f"{settings.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest"
         try:
-            # Set a 30-second timeout for the Safaricom handshake
             response = requests.post(url, json=payload, headers=headers)
     
             if response.status_code != 200:
-                # If Safaricom returns 503, 500, or 400, mark the deposit as FAILED
                 # so the user can try again immediately.
                 deposit.status = "FAILED"
                 deposit.save(update_fields=["status"])

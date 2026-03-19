@@ -22,7 +22,7 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_active', 'created_at']
 
     def validate_category_code(self, value):
-        # Enforcing your 'FOOD' specification for now
+        # Enforcing 'FOOD' specification for now
         allowed_categories = ['FOOD', 'OTHERS']
         if value.upper() not in allowed_categories:
             raise serializers.ValidationError(f"Invalid category. Must be one of {allowed_categories}")

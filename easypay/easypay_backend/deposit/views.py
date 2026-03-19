@@ -5,9 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Deposit
 from .serializers import DepositRequestSerializer
 from .services import MpesaService
-
-# Imagine you have a utility function in your mpesa app
-# from mpesa.utils import initiate_stk_push 
+ 
 
 class DepositInitiateView(generics.CreateAPIView):
     """

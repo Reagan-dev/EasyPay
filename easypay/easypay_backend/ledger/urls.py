@@ -8,6 +8,5 @@ urlpatterns = [
     path('accounts/', LedgerAccountSummaryView.as_view(), name='account-summary'),
     
     # Get the transaction history for a specific account type
-    # Example: /api/ledger/statement/STUDENT_MEAL/
     path('statement/<str:account_type>/', LedgerStatementView.as_view(), name='account-statement'),
 ]
