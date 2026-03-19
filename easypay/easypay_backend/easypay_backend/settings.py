@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     # 3rd Party Apps
     'rest_framework',
     'rest_framework_simplejwt',
-    'corsheaders',  # Good for mobile/frontend connectivity
+    'corsheaders',
+    'rest_framework_simplejwt.token_blacklist',
 
     # EasyPay Internal Apps
     'accounts',

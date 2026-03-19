@@ -8,6 +8,7 @@ from notifications.models import Notification
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from merchants.models import Business
+from accounts.models import User
 
 @receiver(post_save, sender=Transaction)
 def handle_transaction_success(sender, instance, created, **kwargs):
@@ -16,9 +17,16 @@ def handle_transaction_success(sender, instance, created, **kwargs):
         try:
             with transaction.atomic():
                 # --- DEBUGGING: See what is being searched ---
-                payer_type_acc = f"{instance.payer_type}_{instance.wallet_type}"
+                PAYER_LEDGER_MAP = {
+                    ("CUSTOMER", "PERSONAL"): "CUSTOMER_MAIN",
+                    ("STUDENT", "MEAL"): "STUDENT_MEAL",
+                    ("STUDENT", "POCKET"): "STUDENT_POCKET",
+                }
+                payer_type_acc = PAYER_LEDGER_MAP.get(
+                    (instance.payer_type, instance.wallet_type)
+                )
                 print(f"DEBUG: Looking for Payer Ledger: ID={instance.payer_id}, Type={payer_type_acc}")
-                print(f"DEBUG: Looking for Biz Ledger: ID={instance.business.id}, Type=BUSINESS_PAYOUT")
+                print(f"DEBUG: Looking for Biz Ledger: ID={instance.user.id}, Type=BUSINESS_PAYOUT")
                 # ---------------------------------------------
 
                 # Fetch Ledger Accounts 
@@ -28,7 +36,7 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                 )
                 
                 business_ledger = LedgerAccount.objects.get(
-                    owner_id=instance.business.id,
+                    owner_id=instance.user.id,
                     account_type="BUSINESS_PAYOUT"
                 )
 
@@ -74,7 +82,7 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                 payer_wallet.save(update_fields=["balance"])
 
                 biz_wallet = Wallet.objects.select_for_update().get(
-                    owner_id=instance.business.id,
+                    owner_id=instance.user.id,
                     type="SETTLEMENT",
                 )
                 biz_wallet.balance = Decimal(str(biz_wallet.balance)) + net_amount

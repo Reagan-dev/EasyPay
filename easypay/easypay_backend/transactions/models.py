@@ -4,6 +4,7 @@ from merchants.models import Business
 from payments.models import PaymentIntent
 from ledger.models import LedgerEntry
 from decimal import Decimal
+from accounts.models import User
 
 class Transaction(models.Model):
     PAYER_CHOICES = [("STUDENT","STUDENT"), ("CUSTOMER","CUSTOMER")]
@@ -11,6 +12,8 @@ class Transaction(models.Model):
     STATUS_CHOICES = [("SUCCESS","SUCCESS"), ("FAILED","FAILED"), ("PENDING","PENDING")]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+
 
     # Generic Payer Tracking
     payer_type = models.CharField(max_length=20, choices=PAYER_CHOICES)
