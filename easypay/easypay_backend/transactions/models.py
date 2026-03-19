@@ -12,8 +12,6 @@ class Transaction(models.Model):
     STATUS_CHOICES = [("SUCCESS","SUCCESS"), ("FAILED","FAILED"), ("PENDING","PENDING")]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-
 
     # Generic Payer Tracking
     payer_type = models.CharField(max_length=20, choices=PAYER_CHOICES)

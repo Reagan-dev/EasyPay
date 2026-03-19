@@ -26,7 +26,7 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                     (instance.payer_type, instance.wallet_type)
                 )
                 print(f"DEBUG: Looking for Payer Ledger: ID={instance.payer_id}, Type={payer_type_acc}")
-                print(f"DEBUG: Looking for Biz Ledger: ID={instance.user.id}, Type=BUSINESS_PAYOUT")
+                print(f"DEBUG: Looking for Biz Ledger: ID={instance.business.user.id}, Type=BUSINESS_PAYOUT")
                 # ---------------------------------------------
 
                 # Fetch Ledger Accounts 
@@ -36,7 +36,7 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                 )
                 
                 business_ledger = LedgerAccount.objects.get(
-                    owner_id=instance.user.id,
+                    owner_id=instance.business.user.id,
                     account_type="BUSINESS_PAYOUT"
                 )
 
@@ -82,11 +82,19 @@ def handle_transaction_success(sender, instance, created, **kwargs):
                 payer_wallet.save(update_fields=["balance"])
 
                 biz_wallet = Wallet.objects.select_for_update().get(
-                    owner_id=instance.user.id,
+                    owner_id=instance.business.user.id,
                     type="SETTLEMENT",
                 )
                 biz_wallet.balance = Decimal(str(biz_wallet.balance)) + net_amount
                 biz_wallet.save(update_fields=["balance"])
+
+                revenue_wallet = Wallet.objects.select_for_update().get(
+                    owner_id=SYSTEM_PLATFORM_ID,
+                    type="REVENUE",
+                )
+
+                revenue_wallet.balance = Decimal(str(revenue_wallet.balance)) + fee
+                revenue_wallet.save(update_fields=["balance"])
 
                 # 5. Finalize Transaction (Using .update to avoid triggering this signal again)
                 Transaction.objects.filter(id=instance.id).update(ledger_entry=entry)

@@ -89,6 +89,9 @@ class MpesaWithdrawalCallbackView(generics.GenericAPIView):
 
                 withdrawal.save(update_fields=["status"])
                 print(f"DEBUG: Withdrawal {withdrawal.id} finalized as {withdrawal.status}")
+                print("FULL CALLBACK:", request.data)
+                print("RESULT CODE:", result_code)
+                print("RESULT DESC:", result.get("ResultDesc"))
 
         except Withdrawal.DoesNotExist:
             print(f"ERROR: Callback received for unknown reference {conv_id}")

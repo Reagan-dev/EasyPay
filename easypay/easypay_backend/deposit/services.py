@@ -141,7 +141,7 @@ class MpesaService:
             "OriginatorConversationID": originator_id,
             "InitiatorName": settings.MPESA_INITIATOR_NAME,
             "SecurityCredential": settings.MPESA_INITIATOR_PASSWORD,
-            "CommandID": "BusinessPayment",
+            "CommandID": "PromotionPayment",
             "Amount": int(withdrawal.amount),
             "PartyA": settings.MPESA_B2C_SHORTCODE,
             "PartyB": phone,
