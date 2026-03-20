@@ -30,7 +30,7 @@ urlpatterns = [
     path('api/transactions/', include('transactions.urls')), # The Engine
     path('api/payments/', include('payments.urls')), # The Merchant-Student Handshake
     path('api/wallets/', include('wallets.urls')),     # The Balances
-    path('api/withdrawal/', include('withdrawal.urls')), # New Payouts
+    path('api/withdrawals/', include('withdrawal.urls')), # New Payouts
     # Stakeholders
     path('api/guardians/', include('guardians.urls')),
     path('api/merchants/', include('merchants.urls')), # The Merchant/Canteen Endpoints
