@@ -1,0 +1,581 @@
+{
+  "info": {
+    "name": "EasyPay API",
+    "description": "Complete API collection for the EasyPay payment platform. Covers authentication, wallets, payments, deposits, withdrawals, QR tokens, notifications, dashboards, ledger, merchants, students, and guardians.\n\n**Base URL:** `http://127.0.0.1:8000`\n\n**Auth:** All protected endpoints require a Bearer token. After logging in, copy the `access` token and set it as the `access_token` collection variable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "User registration, login, logout, and JWT token management.",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"phone\": \"0712345678\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"password\": \"securepassword123\",\n  \"role\": \"STUDENT\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/accounts/register/",
+            "description": "Register a new user. `role` must be one of: `STUDENT`, `CUSTOMER`, `BUSINESS`, `ADMIN`."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"securepassword123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/accounts/login/",
+            "description": "Login with email and password. Returns `access` and `refresh` JWT tokens. Save the `access` token to the `access_token` collection variable."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/accounts/token/refresh/",
+            "description": "Exchange a refresh token for a new access token."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/accounts/logout/",
+            "description": "Blacklists the provided refresh token, effectively logging the user out."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/accounts/me/",
+            "description": "Returns the authenticated user's profile including their assigned roles."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Students",
+      "description": "Student profile setup and management.",
+      "item": [
+        {
+          "name": "Setup Student Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reg_no\": \"STU/2024/001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/students/setup/",
+            "description": "Creates a student profile and links it to the authenticated user account using a registration number."
+          }
+        },
+        {
+          "name": "Get Student Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/students/me/",
+            "description": "Returns the student profile for the authenticated user."
+          }
+        },
+        {
+          "name": "Update Student Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reg_no\": \"STU/2024/002\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/students/me/",
+            "description": "Partially updates the student profile. All fields are optional."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Merchants",
+      "description": "Business profile and POS terminal management.",
+      "item": [
+        {
+          "name": "Get Business Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/merchants/profile/",
+            "description": "Returns the merchant's business profile including name, category, till number, and all registered terminals."
+          }
+        },
+        {
+          "name": "Update Business Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Canteen\",\n  \"category_code\": \"FOOD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/merchants/profile/",
+            "description": "Partially updates the business profile. `category_code` must be `FOOD` or `OTHERS`."
+          }
+        },
+        {
+          "name": "List Terminals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/merchants/terminals/",
+            "description": "Returns all POS terminals registered under the authenticated merchant's business."
+          }
+        },
+        {
+          "name": "Register Terminal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"DEVICE-001\",\n  \"location\": \"Main Cafeteria - Counter 1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/merchants/terminals/",
+            "description": "Registers a new POS terminal for the authenticated merchant's business."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Guardians",
+      "description": "Guardian (parent/customer) profile and linked student management.",
+      "item": [
+        {
+          "name": "Get Guardian Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/guardians/profile/",
+            "description": "Returns the guardian's profile including their name and phone number."
+          }
+        },
+        {
+          "name": "List Linked Students",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/guardians/students/",
+            "description": "Returns all students linked to the authenticated guardian's account."
+          }
+        },
+        {
+          "name": "Link a Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reg_no\": \"STU/2024/001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/guardians/students/",
+            "description": "Links a student to the guardian's account using the student's registration number. The student must already exist in the system."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "description": "View wallet balances. Wallet types: MEAL, POCKET, PERSONAL, SETTLEMENT.",
+      "item": [
+        {
+          "name": "List All Wallets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/wallets/",
+            "description": "Returns all wallets belonging to the authenticated user with their current balances."
+          }
+        },
+        {
+          "name": "Get Wallet by Type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/MEAL/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "MEAL", ""]
+            },
+            "description": "Returns details for a specific wallet type. Replace `MEAL` with `POCKET`, `PERSONAL`, or `SETTLEMENT` as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Payment intent creation and status polling — the merchant-student handshake.",
+      "item": [
+        {
+          "name": "Create Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"terminal\": \"<terminal-uuid>\",\n  \"amount\": 150.00\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/payments/intent/create/",
+            "description": "Creates a payment intent from a POS terminal. The intent expires in 1 minute. `terminal` is the UUID of the registered terminal."
+          }
+        },
+        {
+          "name": "Get Payment Intent Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/intent/<uuid:pk>/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "intent", "<uuid:pk>", ""]
+            },
+            "description": "Polls the status of a payment intent. Used by the terminal to check if the student has completed payment. Replace `<uuid:pk>` with the intent's UUID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "QR Tokens",
+      "description": "Dynamic QR token generation and validation for contactless payments.",
+      "item": [
+        {
+          "name": "Generate QR Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 150.00,\n  \"wallet_type\": \"MEAL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/qr/generate/",
+            "description": "Generates a new dynamic QR token for the authenticated student or guardian. Invalidates any existing active token. `wallet_type` must be `MEAL`, `POCKET`, or `PERSONAL`. Token expires in 1 minute."
+          }
+        },
+        {
+          "name": "Validate QR Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/qr/validate/<token_value>/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "qr", "validate", "<token_value>", ""]
+            },
+            "description": "Used by the merchant app to verify a scanned QR code before processing a transaction. Returns validity status, amount, and owner. Replace `<token_value>` with the scanned token string."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "description": "Sale processing and transaction history.",
+      "item": [
+        {
+          "name": "Process Sale",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_value\": \"<qr-token-string>\",\n  \"intent_id\": \"<payment-intent-uuid>\",\n  \"wallet_type\": \"MEAL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/transactions/process-sale/",
+            "description": "Executes a payment by matching a student's QR token with a merchant's payment intent. Validates amounts match, checks wallet balance, and processes the transfer. `wallet_type` must be `MEAL`, `POCKET`, or `PERSONAL`."
+          }
+        },
+        {
+          "name": "Transaction History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/transactions/history/",
+            "description": "Returns all transactions for the authenticated merchant's business."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deposits",
+      "description": "M-Pesa STK push deposits to top up wallets.",
+      "item": [
+        {
+          "name": "Initiate Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500,\n  \"target_wallet\": \"MEAL\",\n  \"phone_number\": \"0712345678\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/deposits/initiate/",
+            "description": "Initiates an M-Pesa STK push to top up a wallet. Minimum amount is KES 10. `phone_number` must be in format `0XXXXXXXXX`. `target_wallet` must be `MEAL`, `POCKET`, or `PERSONAL`."
+          }
+        },
+        {
+          "name": "Deposit History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/deposits/history/",
+            "description": "Returns all deposits made by the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Withdrawals",
+      "description": "M-Pesa B2C withdrawals from wallets.",
+      "item": [
+        {
+          "name": "Request Withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200,\n  \"phone_number\": \"0712345678\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/withdrawals/request/",
+            "description": "Initiates an M-Pesa B2C transfer. Wallet source is determined by role: merchants use `SETTLEMENT`, students use `POCKET`, guardians use `PERSONAL`. Validates sufficient balance before initiating."
+          }
+        },
+        {
+          "name": "M-Pesa Withdrawal Callback",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Result\": {\n    \"ResultCode\": 0,\n    \"ResultDesc\": \"The service request is processed successfully.\",\n    \"TransactionID\": \"NLJ7RT61SV\",\n    \"ResultParameters\": {\n      \"ResultParameter\": [\n        { \"Key\": \"TransactionAmount\", \"Value\": 200 },\n        { \"Key\": \"TransactionReceipt\", \"Value\": \"NLJ7RT61SV\" },\n        { \"Key\": \"ReceiverPartyPublicName\", \"Value\": \"254712345678 - John Doe\" }\n      ]\n    }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/withdrawals/callback/",
+            "description": "Public endpoint called by Safaricom to deliver B2C transaction results. Not for direct use — this is called automatically by M-Pesa."
+          }
+        }
+      ]
+    },
+    {
+      "name": "M-Pesa",
+      "description": "M-Pesa STK push callback endpoint (called by Safaricom).",
+      "item": [
+        {
+          "name": "STK Push Callback",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Body\": {\n    \"stkCallback\": {\n      \"MerchantRequestID\": \"29115-34620561-1\",\n      \"CheckoutRequestID\": \"ws_CO_191220191020363925\",\n      \"ResultCode\": 0,\n      \"ResultDesc\": \"The service request is processed successfully.\",\n      \"CallbackMetadata\": {\n        \"Item\": [\n          { \"Name\": \"Amount\", \"Value\": 500 },\n          { \"Name\": \"MpesaReceiptNumber\", \"Value\": \"NLJ7RT61SV\" },\n          { \"Name\": \"PhoneNumber\", \"Value\": 254712345678 }\n        ]\n      }\n    }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/mpesa/callback/",
+            "description": "Public endpoint called by Safaricom to deliver STK push transaction results. Not for direct use — this is called automatically by M-Pesa."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "In-app notification management.",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/notifications/",
+            "description": "Returns all notifications for the authenticated user, newest first."
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/<uuid:id>/read/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "<uuid:id>", "read", ""]
+            },
+            "description": "Marks a specific notification as read. Replace `<uuid:id>` with the notification's UUID."
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/notifications/read-all/",
+            "description": "Marks all unread notifications as read for the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboards",
+      "description": "Role-specific dashboard data aggregating balances, activity, and alerts.",
+      "item": [
+        {
+          "name": "Student Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/dashboards/student/",
+            "description": "Returns student dashboard data: meal & pocket balances, today's spend, unread notifications count, and active QR token if any."
+          }
+        },
+        {
+          "name": "Merchant Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/dashboards/merchant/",
+            "description": "Returns merchant dashboard data: business name, settlement balance, today's revenue, transaction count, pending withdrawals, and unread notifications."
+          }
+        },
+        {
+          "name": "Guardian Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/dashboards/guardian/",
+            "description": "Returns guardian dashboard data: personal balance, total family value, unread notifications, and a summary of each linked child's balance and today's spend."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ledger",
+      "description": "Financial audit trail — account summaries and detailed statements.",
+      "item": [
+        {
+          "name": "Account Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/ledger/accounts/",
+            "description": "Returns all ledger accounts owned by the authenticated user (e.g. Meal, Pocket) with their current balances."
+          }
+        },
+        {
+          "name": "Account Statement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ledger/statement/STUDENT_MEAL/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ledger", "statement", "STUDENT_MEAL", ""]
+            },
+            "description": "Returns a full history of all money movements (debits and credits) for a specific ledger account type. Replace `STUDENT_MEAL` with the relevant account type for the user."
+          }
+        }
+      ]
+    }
+  ]
+}
