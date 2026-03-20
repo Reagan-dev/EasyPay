@@ -1,0 +1,1 @@
+web: gunicorn easypay_backend.wsgi:application
