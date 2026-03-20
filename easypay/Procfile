@@ -1,1 +1,1 @@
-web: gunicorn easypay_backend.wsgi:application
+web: gunicorn easypay_backend.wsgi:application --chdir easypay
