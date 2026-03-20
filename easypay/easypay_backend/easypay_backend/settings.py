@@ -75,6 +75,20 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+
+
+    "http://localhost:5173",
+    "http://192.168.0.103:3000",
+    "http://localhost:3000",
+    "http://192.168.137.149:3000",
+
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+
 ROOT_URLCONF = 'easypay_backend.urls'
 
 TEMPLATES = [
